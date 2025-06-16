@@ -1,5 +1,6 @@
 const express = require("express");
 const { MongoClient } = require("mongodb");
+const { ObjectId } = require("mongodb");
 const cors = require("cors");
 
 const app = express();
@@ -94,17 +95,59 @@ app.post("/api/events", async (req, res) => {
 
 
 app.get("/api/events/upcoming", async (req, res) => {
-  try {
-    const now = new Date();
-    const upcomingEvents = await db
-      .collection("events")
-      .find({ eventDate: { $gte: now } })
-      .sort({ eventDate: 1 })
-      .toArray();
+  const now = new Date();
+  const upcomingEvents = await db
+    .collection("events")
+    .find({ eventDate: { $gt: now } })
+    .sort({ eventDate: 1 })
+    .toArray();
 
-    res.status(200).json(upcomingEvents);
-  } catch (error) {
-    console.error("Error fetching upcoming events:", error);
-    res.status(500).json({ message: "Failed to fetch events." });
+  res.json(upcomingEvents);
+});
+
+app.post("/api/join-event", async (req, res) => {
+  const { eventId, name, email } = req.body;
+
+  if (!eventId || !name || !email) {
+    return res.status(400).json({ message: "Missing fields" });
+  }
+
+  if (!ObjectId.isValid(eventId)) {
+    return res.status(400).json({ message: "Invalid event ID" });
+  }
+
+  try {
+    const joinData = {
+      eventId: new ObjectId(eventId),
+      name,
+      email,
+      joinedAt: new Date(),
+    };
+
+    await db.collection("event_joins").insertOne(joinData);
+
+    res.status(200).json({ message: "Join successful" });
+  } catch (err) {
+    console.error("Join event error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/api/events/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid event ID" });
+  }
+
+  try {
+    const event = await db.collection("events").findOne({ _id: new ObjectId(id) });
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    res.json(event);
+  } catch (err) {
+    console.error("Error fetching event:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
