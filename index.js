@@ -181,3 +181,22 @@ app.get("/api/joined-events", async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
+
+app.get("/api/events", async (req, res) => {
+  const createdBy = req.query.createdBy;
+  if (!createdBy) {
+    return res.status(400).json({ message: "createdBy query parameter is required" });
+  }
+
+  try {
+    const events = await db.collection("events")
+      .find({ createdBy: createdBy })
+      .sort({ eventDate: 1 })
+      .toArray();
+
+    res.json(events);
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
