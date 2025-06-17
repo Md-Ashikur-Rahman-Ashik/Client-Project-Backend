@@ -92,13 +92,37 @@ app.post("/api/events", async (req, res) => {
 
 app.get("/api/events/upcoming", async (req, res) => {
   const now = new Date();
-  const upcomingEvents = await db
-    .collection("events")
-    .find({ eventDate: { $gt: now } })
-    .sort({ eventDate: 1 })
-    .toArray();
+  const { eventType, search } = req.query;
 
-  res.json(upcomingEvents);
+  // Build the query object
+  const query = {
+    eventDate: { $gt: now },
+  };
+
+  if (eventType) {
+    query.eventType = eventType;
+  }
+
+  if (search) {
+    // Search title and description case-insensitive
+    query.$or = [
+      { title: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  try {
+    const upcomingEvents = await db
+      .collection("events")
+      .find(query)
+      .sort({ eventDate: 1 })
+      .toArray();
+
+    res.json(upcomingEvents);
+  } catch (error) {
+    console.error("Error fetching upcoming events:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
 });
 
 app.post("/api/join-event", async (req, res) => {
