@@ -15,12 +15,10 @@ app.use(express.json());
 
 let db;
 
-
 MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
   .then((client) => {
     console.log("Connected to MongoDB");
     db = client.db(DB_NAME);
-
 
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
@@ -32,7 +30,6 @@ MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
 app.get("/", (req, res) => {
   res.send("Hello, World!");
 });
-
 
 app.post("/api/events", async (req, res) => {
   const {
@@ -93,7 +90,6 @@ app.post("/api/events", async (req, res) => {
   }
 });
 
-
 app.get("/api/events/upcoming", async (req, res) => {
   const now = new Date();
   const upcomingEvents = await db
@@ -141,7 +137,9 @@ app.get("/api/events/:id", async (req, res) => {
   }
 
   try {
-    const event = await db.collection("events").findOne({ _id: new ObjectId(id) });
+    const event = await db
+      .collection("events")
+      .findOne({ _id: new ObjectId(id) });
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
@@ -149,5 +147,37 @@ app.get("/api/events/:id", async (req, res) => {
   } catch (err) {
     console.error("Error fetching event:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/api/joined-events", async (req, res) => {
+  const userEmail = req.query.email;
+
+  if (!userEmail) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  try {
+    const joinedRecords = await db
+      .collection("event_joins")
+      .find({ email: userEmail })
+      .toArray();
+
+    const eventIds = joinedRecords.map((j) => j.eventId);
+
+    if (!eventIds.length) {
+      return res.status(200).json([]);
+    }
+
+    const joinedEvents = await db
+      .collection("events")
+      .find({ _id: { $in: eventIds } })
+      .sort({ eventDate: 1 })
+      .toArray();
+
+    res.status(200).json(joinedEvents);
+  } catch (error) {
+    console.error("Error fetching joined events:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
