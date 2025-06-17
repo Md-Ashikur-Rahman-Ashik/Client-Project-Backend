@@ -185,11 +185,14 @@ app.get("/api/joined-events", async (req, res) => {
 app.get("/api/events", async (req, res) => {
   const createdBy = req.query.createdBy;
   if (!createdBy) {
-    return res.status(400).json({ message: "createdBy query parameter is required" });
+    return res
+      .status(400)
+      .json({ message: "createdBy query parameter is required" });
   }
 
   try {
-    const events = await db.collection("events")
+    const events = await db
+      .collection("events")
       .find({ createdBy: createdBy })
       .sort({ eventDate: 1 })
       .toArray();
@@ -197,6 +200,77 @@ app.get("/api/events", async (req, res) => {
     res.json(events);
   } catch (err) {
     console.error("Error fetching events:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.put("/api/events/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid event ID" });
+  }
+
+  const { title, description, eventType, thumbnailUrl, location, eventDate } =
+    req.body;
+
+  if (!title || !eventDate) {
+    return res
+      .status(400)
+      .json({ message: "Title and eventDate are required." });
+  }
+
+  const eventDateObj = new Date(eventDate);
+  if (isNaN(eventDateObj.getTime())) {
+    return res.status(400).json({ message: "Invalid date format." });
+  }
+
+  try {
+    const result = await db.collection("events").findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          title,
+          description,
+          eventType,
+          thumbnailUrl,
+          location,
+          eventDate: eventDateObj,
+        },
+      },
+      { returnDocument: "after" }
+    );
+
+    if (!result.value) {
+      return res.status(404).json({ message: "Event not found." });
+    }
+
+    res.status(200).json(result.value);
+  } catch (error) {
+    console.error("Error updating event:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+app.delete("/api/events/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid event ID" });
+  }
+
+  try {
+    const result = await db
+      .collection("events")
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    res.status(200).json({ message: "Event deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting event:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
